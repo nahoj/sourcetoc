@@ -2,22 +2,21 @@ sourcetoc computes a table of contents for a source code file based on
 headings found in comments.
 
 ~~~
-# <TOC>                              >>>>   # <TOC>
-# </TOC>                                    # Section 1 .....................  9
-                                            #   Section 1.1 ................. 10
-...                                         # Section 2 ..................... 14
-                                            # </TOC>
-# == Section 1 ==
-# === Section 1.1 ===                       ...
-
-...                                         # == Section 1 ==
-                                            # === Section 1.1 ===
-# == Section 2
-                                            ...
+/* <TOC> */                      >>>>      /* <TOC> */
+/* </TOC> */                               /* Section 1 ...................  8
+                                            *   Section 1.1 ...............  9
+// == Section 1 ==                          * Section 2 ................... 13
+// === Section 1.1 ===                      */
+                                           /* </TOC> */
 ...
-                                            # == Section 2
+                                           // == Section 1 ==
+// == Section 2 ==                         // === Section 1.1 ===
 
-                                            ...
+...                                        ...
+
+                                           // == Section 2 ==
+
+                                           ...
 ~~~
 
 sourcetoc supports three styles of headings (wiki, atx (markdown)
@@ -33,7 +32,7 @@ To install once do `sudo make install`.
 To get sourcetoc with updates you can do:
 
 ~~~
-git clone ...
+git clone https://github.com/nahoj/sourcetoc.git
 cd sourcetoc
 sudo make lninstall  # creates a symlink
 ~~~
@@ -82,4 +81,6 @@ file is unchanged.
 
 By default sourcetoc expects wiki-style headings (`== ... ==`). It
 also supports atx/Markdown headings (`## ... ##`) and HTML headings
-(`<h2>...</h2>`). See `--heading-style`.
+(`<h2>...</h2>`). Use `--heading-style`.
+
+See `sourcetoc --help` for the full list of options.

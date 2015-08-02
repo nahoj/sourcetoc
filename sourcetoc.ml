@@ -476,7 +476,10 @@ let anon_fun f =
   push f files
 
 let usage_msg =
-  sprintf "Usage: %s (OPTION|FILE)*\n\nSee README.md.\n" sourcetoc
+  sprintf "Usage: %s (OPTION|FILE)*
+
+See README.md or https://github.com/nahoj/sourcetoc.
+" sourcetoc
 
 let main () =
   Arg.parse speclist anon_fun usage_msg;
