@@ -10,6 +10,9 @@ let indent_width = ref 2
 let line_length = ref 80
 let verbosity = ref 1
 
+type action = Fill | Clear | TocOnly
+let action = ref Fill
+
 type output = File of string | InPlace | Stdout
 let output = ref InPlace
 
@@ -44,8 +47,6 @@ open Printf
 
 let push, pop = Queue.push, Queue.pop
 
-
-type action = Fill | Clear | TocOnly
 
 type comment = BeginEnd of string * string | Line of string
 
@@ -89,23 +90,22 @@ let with_file_as_wchan file f =
 
 (* == Logging and failing == *)
 
-let log msg =
-  eprintf "%s: %s\n%!" sourcetoc msg
+let log fmt =
+  ksprintf (fun s -> eprintf "%s: %s\n%!" sourcetoc s) fmt
 
-let warn level msg =
-  if !verbosity >= level then
-    log ("Warning: " ^ msg)
+let warn level fmt =
+  ksprintf (fun s -> if !verbosity >= level then log "Warning: %s" s) fmt
 
 
 exception FileCrash
 
 (* Stop processing of current file (start working on next file) *)
 let fcrash fmt =
-  ksprintf (fun s -> log s; raise FileCrash) fmt
+  ksprintf (fun s -> log "%s" s; raise FileCrash) fmt
 
 (* Exit program *)
 let gcrash fmt =
-  ksprintf (fun s -> log s; exit 1) fmt
+  ksprintf (fun s -> log "%s" s; exit 1) fmt
 
 
 
@@ -141,7 +141,7 @@ let find_comments ext =
   | "sh" | "mk" ->
       [Line "#"]
   | _ ->
-      fcrash "Unknown file extension"
+      fcrash "Unknown file extension: .%s." ext
 
 
 
@@ -187,7 +187,7 @@ let heading_of_line com_pats =
       Some (level, txt)
     else
       None
-    
+
 
 let toc_error_prefix = "Table of contents place ill-defined"
 
@@ -200,10 +200,7 @@ let toc_unicity q s =
         (String.concat ", " (List.map string_of_int (list_of_queue q)))
 
 
-(* Returns :
-   lines before TOC, <TOC> line #, headings, </TOC> line #, lines after TOC *)
-let read_source comments inchan
-    : string Queue.t * int * heading Queue.t * int * string Queue.t =
+let scan_file comments rchan =
   let open Str in
   let heading_of_line = heading_of_line comments in
   let toc_begins_regexps = comment_regexps comments "<TOC *>"
@@ -217,7 +214,7 @@ let read_source comments inchan
   (* Scan file *)
   (try
      while true do
-       let line = input_line inchan in
+       let line = input_line rchan in
        incr line_number;
 
        (match heading_of_line line with
@@ -234,6 +231,17 @@ let read_source comments inchan
      done
    with End_of_file -> () );
 
+  headings, toc_begins, toc_ends, all_lines, !line_number
+
+
+(* Returns :
+   lines before TOC, <TOC> line #, headings, </TOC> line #, lines after TOC *)
+let read_source comments rchan
+    : string Queue.t * int * heading Queue.t * int * string Queue.t =
+
+  let headings, toc_begins, toc_ends, all_lines, line_count =
+    scan_file comments rchan in
+
   (* Validate TOC place *)
   let toc_begin = toc_unicity toc_begins "<TOC>"
   and toc_end = toc_unicity toc_ends "</TOC>" in
@@ -249,7 +257,7 @@ let read_source comments inchan
   for i = toc_begin + 1 to toc_end - 1 do
     ignore (pop all_lines)
   done;
-  for i = toc_end to !line_number do
+  for i = toc_end to line_count do
     push (pop all_lines) after_toc
   done;
   assert (Queue.is_empty all_lines);
@@ -340,19 +348,29 @@ let toc_of_headings comment toc_begin toc_end headings : string Queue.t =
 
 (* Read; compute; write *)
 let process_channels action comments rchan =
-  let before_toc, toc_begin, headings, toc_end, after_toc =
-    read_source comments rchan
-  in
-  let toc =
-    if action = Clear then
-      Queue.create ()
-    else
-      toc_of_headings (List.hd comments) toc_begin toc_end headings
-  in
-  fun wchan ->
-    List.iter
-      (Queue.iter (fprintf wchan "%s\n"))
-      (if action = TocOnly then [toc] else [before_toc; toc; after_toc])
+  if action = TocOnly then
+    let headings, _, _, _, line_count = scan_file comments rchan in
+    let toc =
+      toc_of_headings (List.hd comments) (line_count + 1) (line_count + 2)
+        headings
+    in
+    fun wchan ->
+      Queue.iter (fprintf wchan "%s\n") toc
+
+  else
+    let before_toc, toc_begin, headings, toc_end, after_toc =
+      read_source comments rchan
+    in
+    let toc =
+      if action = Clear then
+        Queue.create ()
+      else
+        toc_of_headings (List.hd comments) toc_begin toc_end headings
+    in
+    fun wchan ->
+      List.iter
+        (Queue.iter (fprintf wchan "%s\n"))
+        [before_toc; toc; after_toc]
 
 
 (* Process a file *)
@@ -421,7 +439,6 @@ let heading_style_of_string s =
   | _ -> invalid_arg "heading_style_of_string"
 
 
-let action = ref Fill
 let comment_style = ref ""
 let files = Queue.create ()
 
