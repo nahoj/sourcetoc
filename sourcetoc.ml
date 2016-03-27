@@ -23,15 +23,15 @@ let sourcetoc = Filename.basename Sys.argv.(0)
 
 
 (* <TOC> *)
-(* Utils ...................................................................  55
- *   Logging and failing ...................................................  89
- * Comment patterns  #data ................................................. 111
- * Read source file ........................................................ 147
- * Generate table of contents .............................................. 260
- *   Adjust line numbers and levels ........................................ 261
- *   Generate TOC lines .................................................... 274
- * I/O ..................................................................... 338
- * CLI ..................................................................... 413
+(* Utils ...................................................................  57
+ *   Logging and failing ...................................................  91
+ * Comment patterns  #data ................................................. 112
+ * Read source file ........................................................ 148
+ * Generate table of contents .............................................. 282
+ *   Adjust line numbers and levels ........................................ 283
+ *   Generate TOC lines .................................................... 296
+ * I/O ..................................................................... 360
+ * CLI ..................................................................... 445
  *)
 (* </TOC> *)
 
@@ -189,6 +189,12 @@ let heading_of_line com_pats =
       None
 
 
+let line_breaks_error ="\
+This file contains DOS/Windows line breaks (\\r\\n). "^sourcetoc^" only supports
+Unix line breaks for now. Example usage for a file with DOS line breaks:
+dos2unix $FILE && "^sourcetoc^" $FILE && unix2dos $FILE
+"
+
 let toc_error_prefix = "Table of contents place ill-defined"
 
 let toc_unicity q s =
@@ -217,6 +223,13 @@ let scan_file comments rchan =
        let line = input_line rchan in
        incr line_number;
 
+       (* Check for a DOS line break on the first line *)
+       if !line_number = 1
+         && let l = String.length line in l > 0 && line.[l-1] = '\r'
+       then
+         (eprintf "%s%!" line_breaks_error;
+          raise FileCrash);
+
        (match heading_of_line line with
         | Some (level, txt) ->
             push (!line_number, level, txt) headings
@@ -234,7 +247,7 @@ let scan_file comments rchan =
   headings, toc_begins, toc_ends, all_lines, !line_number
 
 
-(* Returns :
+(* Returns:
    lines before TOC, <TOC> line #, headings, </TOC> line #, lines after TOC *)
 let read_source comments rchan
     : string Queue.t * int * heading Queue.t * int * string Queue.t =
@@ -320,7 +333,7 @@ let toc_of_headings comment toc_begin toc_end headings : string Queue.t =
       String.length cb = 2 && String.length ce = 2 && cb.[1] = ce.[0] in
     (* In the "special" case we will generate something like
      * the present comment.
-    *)
+     *)
     let line_begin, line_end =
       if special then
         " " ^ (String.sub cb 1 1) ^ " ", ""
