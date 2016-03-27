@@ -138,7 +138,7 @@ let find_comments ext =
                      ["'"; "\""; "'''"; "\"\"\""] )
   | "scm" ->
       [Line ";;"; Line ";"; BeginEnd ("#|", "|#")]
-  | "sh" | "mk" ->
+  | "sh" | "mk" | "pl" | "pm" ->
       [Line "#"]
   | _ ->
       fcrash "Unknown file extension: .%s." ext
